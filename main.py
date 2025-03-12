@@ -1,11 +1,12 @@
 from time import sleep
 from re import search
 import qbittorrentapi
+from sys import exit
 
 def isBadClient(client):
     regex_list = [
-        r"^-XL00",
-        r"^Xunlei",
+        r"(?i)^-XL00",
+        r"(?i)^Xunlei",
         r"^7\."
     ]
 
@@ -15,39 +16,44 @@ def isBadClient(client):
 
     return False
 
-# Web UI 信息
-qb_client = qbittorrentapi.Client(
-    host="localhost",
-    port=8080,
-    username="admin",
-    password="password"
-)
 
 try:
-    qb_client.auth_log_in()
-except qbittorrentapi.LoginFailed as e:
-    print(e)
+    # Web UI 信息
+    qb_client = qbittorrentapi.Client(
+        host="localhost",
+        port=8080,
+        username="admin",
+        password="password"
+    )
 
-print(f"# qBittorrent: {qb_client.app.version}")
-print(f"# qBittorrent Web API: {qb_client.app.web_api_version}")
+    try:
+        qb_client.auth_log_in()
+    except qbittorrentapi.LoginFailed as e:
+        print(e)
 
-# 清空旧的 IP 封禁列表
-qb_client.app_set_preferences({ "banned_IPs": "" })
+    print(f"# qBittorrent: {qb_client.app.version}")
+    print(f"# qBittorrent Web API: {qb_client.app.web_api_version}")
 
-while True:
-    for torrent in qb_client.torrents_info():
-        try:
-            peers_info = qb_client.sync_torrent_peers(torrent_hash=torrent.hash)
-        except:
-            break
+    # 清空旧的 IP 封禁列表
+    qb_client.app_set_preferences({ "banned_IPs": "" })
 
-        for k, peer in peers_info.peers.items():
-            if (
-              isBadClient(peer.client)
-              and peer.up_speed > peer.dl_speed * 2
-              and peer.uploaded > peer.downloaded
-            ):
-                qb_client.transfer_ban_peers(k)
-                print(f">> ban: {k} \"{peer.client}\"")
+    while True:
+        for torrent in qb_client.torrents_info():
+            try:
+                peers_info = qb_client.sync_torrent_peers(torrent_hash=torrent.hash)
+            except:
+                break
 
-    sleep(5)
+            for k, peer in peers_info.peers.items():
+                if (
+                  isBadClient(peer.client)
+                  and peer.up_speed > peer.dl_speed * 2
+                  and peer.uploaded > peer.downloaded
+                ):
+                    qb_client.transfer_ban_peers(k)
+                    print(f">> ban: {k} \"{peer.client}\" from \"{torrent.name}\"")
+
+        sleep(5)
+
+except KeyboardInterrupt:
+    exit(0)
